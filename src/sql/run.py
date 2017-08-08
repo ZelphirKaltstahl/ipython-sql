@@ -9,6 +9,7 @@ import sqlparse
 import prettytable
 from pgspecial.main import PGSpecial
 from .column_guesser import ColumnGuesserMixin
+from functools import reduce
 
 
 def unduplicate_field_names(field_names):
@@ -22,6 +23,7 @@ def unduplicate_field_names(field_names):
             k += '_' + str(i)
         res.append(k)
     return res
+
 
 class UnicodeWriter(object):
     """
@@ -48,9 +50,9 @@ class UnicodeWriter(object):
         # Fetch UTF-8 output from the queue ...
         data = self.queue.getvalue()
         if six.PY2:
-           data = data.decode("utf-8")
-           # ... and reencode it into the target encoding
-           data = self.encoder.encode(data)
+            data = data.decode("utf-8")
+            # ... and reencode it into the target encoding
+            data = self.encoder.encode(data)
         # write to the target stream
         self.stream.write(data)
         # empty queue
@@ -61,12 +63,15 @@ class UnicodeWriter(object):
         for row in rows:
             self.writerow(row)
 
+
 class CsvResultDescriptor(object):
     """Provides IPython Notebook-friendly output for the feedback after a ``.csv`` called."""
     def __init__(self, file_path):
         self.file_path = file_path
+
     def __repr__(self):
         return 'CSV results at %s' % os.path.join(os.path.abspath('.'), self.file_path)
+
     def _repr_html_(self):
         return '<a href="%s">CSV results</a>' % os.path.join('.', 'files', self.file_path)
 
@@ -80,6 +85,7 @@ def _nonbreaking_spaces(match_obj):
     """
     spaces = '&nbsp;' * len(match_obj.group(2))
     return '%s%s' % (match_obj.group(1), spaces)
+
 
 _cell_with_spaces_pattern = re.compile(r'(<td>)( {2,})')
 
@@ -116,8 +122,10 @@ class ResultSet(list, ColumnGuesserMixin):
             result = self.pretty.get_html_string()
             result = _cell_with_spaces_pattern.sub(_nonbreaking_spaces, result)
             if self.config.displaylimit and len(self) > self.config.displaylimit:
-                result = '%s\n<span style="font-style:italic;text-align:center;">%d rows, truncated to displaylimit of %d</span>' % (
-                    result, len(self), self.config.displaylimit)
+                result = ('%s\n'
+                          '<span style="font-style:italic;text-align:center;">'
+                          '%d rows, truncated to displaylimit of %d'
+                          '</span>') % (result, len(self), self.config.displaylimit)
             return result
         else:
             return None
@@ -140,6 +148,7 @@ class ResultSet(list, ColumnGuesserMixin):
             if len(result) > 1:
                 raise KeyError('%d results for "%s"' % (len(result), key))
             return result[0]
+
     def dict(self):
         """Returns a single dict built from the result set
 
@@ -214,7 +223,7 @@ class ResultSet(list, ColumnGuesserMixin):
         plt.ylabel(ylabel)
         return plot
 
-    def bar(self, key_word_sep = " ", title=None, **kwargs):
+    def bar(self, key_word_sep=" ", title=None, **kwargs):
         """Generates a pylab bar plot from the result set.
 
         ``matplotlib`` must be installed, and in an
@@ -248,7 +257,7 @@ class ResultSet(list, ColumnGuesserMixin):
         """Generate results in comma-separated form.  Write to ``filename`` if given.
            Any other parameters will be passed on to csv.writer."""
         if not self.pretty:
-            return None # no results
+            return None  # no results
         self.pretty.add_rows(self)
         if filename:
             encoding = format_params.get('encoding', 'utf-8')
@@ -275,6 +284,7 @@ def interpret_rowcount(rowcount):
     else:
         result = '%d rows affected.' % rowcount
     return result
+
 
 class FakeResultProxy(object):
     """A fake class that pretends to behave like the ResultProxy from
@@ -308,7 +318,7 @@ def run(conn, sql, config, user_namespace):
                 if config.autocommit and ('mssql' not in str(conn.dialect)):
                     conn.session.execute('commit')
             except sqlalchemy.exc.OperationalError:
-                pass # not all engines can commit
+                pass  # not all engines can commit
             if result and config.feedback:
                 print(interpret_rowcount(result.rowcount))
         resultset = ResultSet(result, statement, config)
@@ -316,7 +326,7 @@ def run(conn, sql, config, user_namespace):
             return resultset.DataFrame()
         else:
             return resultset
-        #returning only last result, intentionally
+        # returning only last result, intentionally
     else:
         return 'Connected: %s' % conn.name
 
